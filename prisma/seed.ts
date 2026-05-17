@@ -160,48 +160,87 @@ const ROLES = [
 ];
 
 const CURRENCIES = [
-  { code: 'GBP', name: 'British Pound Sterling', symbol: '£', decimals: 2, isActive: true },
-  { code: 'USD', name: 'US Dollar', symbol: '$', decimals: 2, isActive: true },
-  { code: 'EUR', name: 'Euro', symbol: '€', decimals: 2, isActive: true },
-  { code: 'KES', name: 'Kenyan Shilling', symbol: 'KSh', decimals: 2, isActive: true },
-  { code: 'UGX', name: 'Ugandan Shilling', symbol: 'USh', decimals: 2, isActive: true },
-  { code: 'GHS', name: 'Ghanaian Cedi', symbol: 'GH₵', decimals: 2, isActive: true },
+  { code: 'ZAR', name: 'South African Rand', symbol: 'R', decimals: 2, isActive: true },
+  { code: 'LSL', name: 'Lesotho Loti', symbol: 'L', decimals: 2, isActive: true },
+  { code: 'SZL', name: 'Swazi Lilangeni', symbol: 'L', decimals: 2, isActive: true },
+  { code: 'BWP', name: 'Botswana Pula', symbol: 'P', decimals: 2, isActive: true },
+  { code: 'MWK', name: 'Malawian Kwacha', symbol: 'MK', decimals: 2, isActive: true },
 ];
 
 const CURRENCY_PAIRS = [
-  { sourceCurrencyCode: 'GBP', destCurrencyCode: 'KES', baseRate: 150.00, margin: 1.5 },
-  { sourceCurrencyCode: 'USD', destCurrencyCode: 'KES', baseRate: 120.00, margin: 1.2 },
-  { sourceCurrencyCode: 'USD', destCurrencyCode: 'UGX', baseRate: 3700.00, margin: 1.0 },
-  { sourceCurrencyCode: 'EUR', destCurrencyCode: 'GHS', baseRate: 12.50, margin: 1.8 },
+  { sourceCurrencyCode: 'ZAR', destCurrencyCode: 'LSL', baseRate: 1.00, margin: 0.5 },
+  { sourceCurrencyCode: 'ZAR', destCurrencyCode: 'SZL', baseRate: 1.00, margin: 0.5 },
+  { sourceCurrencyCode: 'ZAR', destCurrencyCode: 'BWP', baseRate: 0.74, margin: 1.2 },
+  { sourceCurrencyCode: 'ZAR', destCurrencyCode: 'MWK', baseRate: 125.00, margin: 2.0 },
 ];
 
 const FEE_RULES = [
+  // ZAR -> LSL
   {
-    sourceCountry: 'GB',
-    destCountry: 'KE',
-    payoutMethod: 'BANK_ACCOUNT' as const,
-    minAmount: 0,
-    maxAmount: 10000,
-    flatFee: 2.99,
-    percentFee: 0.5,
-  },
-  {
-    sourceCountry: 'GB',
-    destCountry: 'KE',
+    sourceCountry: 'ZA',
+    destCountry: 'LS',
     payoutMethod: 'MOBILE_MONEY' as const,
     minAmount: 0,
-    maxAmount: 5000,
-    flatFee: 1.99,
+    maxAmount: 50000,
+    flatFee: 15.00,
     percentFee: 0.8,
   },
   {
-    sourceCountry: 'US',
-    destCountry: 'UG',
+    sourceCountry: 'ZA',
+    destCountry: 'LS',
+    payoutMethod: 'BANK_ACCOUNT' as const,
+    minAmount: 0,
+    maxAmount: 100000,
+    flatFee: 25.00,
+    percentFee: 0.5,
+  },
+  // ZAR -> SZL
+  {
+    sourceCountry: 'ZA',
+    destCountry: 'SZ',
     payoutMethod: 'MOBILE_MONEY' as const,
     minAmount: 0,
-    maxAmount: 20000,
-    flatFee: 3.99,
-    percentFee: 0.3,
+    maxAmount: 50000,
+    flatFee: 15.00,
+    percentFee: 0.8,
+  },
+  // ZAR -> BWP
+  {
+    sourceCountry: 'ZA',
+    destCountry: 'BW',
+    payoutMethod: 'MOBILE_MONEY' as const,
+    minAmount: 0,
+    maxAmount: 50000,
+    flatFee: 20.00,
+    percentFee: 1.0,
+  },
+  {
+    sourceCountry: 'ZA',
+    destCountry: 'BW',
+    payoutMethod: 'BANK_ACCOUNT' as const,
+    minAmount: 0,
+    maxAmount: 100000,
+    flatFee: 35.00,
+    percentFee: 0.6,
+  },
+  // ZAR -> MWK
+  {
+    sourceCountry: 'ZA',
+    destCountry: 'MW',
+    payoutMethod: 'CASH_PICKUP' as const,
+    minAmount: 0,
+    maxAmount: 50000,
+    flatFee: 30.00,
+    percentFee: 1.5,
+  },
+  {
+    sourceCountry: 'ZA',
+    destCountry: 'MW',
+    payoutMethod: 'MOBILE_MONEY' as const,
+    minAmount: 0,
+    maxAmount: 50000,
+    flatFee: 25.00,
+    percentFee: 1.2,
   },
 ];
 
