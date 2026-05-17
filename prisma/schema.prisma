@@ -6,15 +6,69 @@ datasource db {
   provider = "postgresql"
 }
 
-enum Role {
-  CUSTOMER
-  ADMIN
-  COMPLIANCE_OFFICER
-  FINANCE_OFFICER
-  OPERATIONS_OFFICER
-  PARTNER_MANAGER
-  SUPPORT_AGENT
+model UserProfile {
+  id        String   @id // WSO2 Subject ID
+  email     String   @unique
+  fullName  String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  customer  Customer?
+  roles     UserRole[]
+  auditLogs AuditLog[]
+  
+  @@map("user_profiles")
 }
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  resource    String
+  action      String
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userProfileId String
+  roleId        String
+  assignedAt    DateTime    @default(now())
+  assignedBy    String?
+  userProfile   UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  role          Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userProfileId, roleId])
+  @@map("user_roles")
+}
+
 
 enum CustomerStatus {
   PENDING_KYC
@@ -114,9 +168,8 @@ enum SettlementStatus {
 
 model Customer {
   id              String                 @id @default(uuid())
-  wso2SubjectId   String                 @unique
-  email           String                 @unique
-  role            Role                   @default(CUSTOMER)
+  userProfileId   String                 @unique
+  userProfile     UserProfile            @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
   status          CustomerStatus         @default(PENDING_KYC)
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
@@ -124,7 +177,6 @@ model Customer {
   kyc             CustomerKyc?
   recipients      Recipient[]
   transactions    RemittanceTransaction[]
-  auditLogs       AuditLog[]
 }
 
 model CustomerProfile {
@@ -393,9 +445,9 @@ model NotificationLog {
 }
 
 model AuditLog {
-  id            String    @id @default(uuid())
+  id            String       @id @default(uuid())
   actorId       String?
-  actor         Customer? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actor         UserProfile? @relation(fields: [actorId], references: [id], onDelete: SetNull)
   action        String
   entityName    String
   entityId      String
@@ -404,7 +456,7 @@ model AuditLog {
   ipAddress     String?
   userAgent     String?
   correlationId String
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime     @default(now())
 }
 
 model WebhookEvent {
