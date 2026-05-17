@@ -159,6 +159,52 @@ const ROLES = [
   },
 ];
 
+const CURRENCIES = [
+  { code: 'GBP', name: 'British Pound Sterling', symbol: '£', decimals: 2, isActive: true },
+  { code: 'USD', name: 'US Dollar', symbol: '$', decimals: 2, isActive: true },
+  { code: 'EUR', name: 'Euro', symbol: '€', decimals: 2, isActive: true },
+  { code: 'KES', name: 'Kenyan Shilling', symbol: 'KSh', decimals: 2, isActive: true },
+  { code: 'UGX', name: 'Ugandan Shilling', symbol: 'USh', decimals: 2, isActive: true },
+  { code: 'GHS', name: 'Ghanaian Cedi', symbol: 'GH₵', decimals: 2, isActive: true },
+];
+
+const CURRENCY_PAIRS = [
+  { sourceCurrencyCode: 'GBP', destCurrencyCode: 'KES', baseRate: 150.00, margin: 1.5 },
+  { sourceCurrencyCode: 'USD', destCurrencyCode: 'KES', baseRate: 120.00, margin: 1.2 },
+  { sourceCurrencyCode: 'USD', destCurrencyCode: 'UGX', baseRate: 3700.00, margin: 1.0 },
+  { sourceCurrencyCode: 'EUR', destCurrencyCode: 'GHS', baseRate: 12.50, margin: 1.8 },
+];
+
+const FEE_RULES = [
+  {
+    sourceCountry: 'GB',
+    destCountry: 'KE',
+    payoutMethod: 'BANK_ACCOUNT' as const,
+    minAmount: 0,
+    maxAmount: 10000,
+    flatFee: 2.99,
+    percentFee: 0.5,
+  },
+  {
+    sourceCountry: 'GB',
+    destCountry: 'KE',
+    payoutMethod: 'MOBILE_MONEY' as const,
+    minAmount: 0,
+    maxAmount: 5000,
+    flatFee: 1.99,
+    percentFee: 0.8,
+  },
+  {
+    sourceCountry: 'US',
+    destCountry: 'UG',
+    payoutMethod: 'MOBILE_MONEY' as const,
+    minAmount: 0,
+    maxAmount: 20000,
+    flatFee: 3.99,
+    percentFee: 0.3,
+  },
+];
+
 async function main() {
   console.log('🌱 Seeding Golink Remit dynamic RBAC & Permissions...');
 
@@ -198,7 +244,83 @@ async function main() {
     console.log(`✅ Role ${roleData.name} seeded with ${roleData.permissions.length} permissions`);
   }
 
-  console.log('🎉 Golink Remit Dynamic RBAC Seeding Completed!');
+  console.log('🌱 Seeding Currencies and Corridors...');
+  for (const curr of CURRENCIES) {
+    await prisma.currency.upsert({
+      where: { code: curr.code },
+      create: curr,
+      update: { name: curr.name, symbol: curr.symbol, isActive: curr.isActive },
+    });
+  }
+  console.log(`✅ ${CURRENCIES.length} currencies seeded`);
+
+  for (const pairData of CURRENCY_PAIRS) {
+    const pair = await prisma.currencyPair.upsert({
+      where: {
+        sourceCurrencyCode_destCurrencyCode: {
+          sourceCurrencyCode: pairData.sourceCurrencyCode,
+          destCurrencyCode: pairData.destCurrencyCode,
+        },
+      },
+      create: {
+        sourceCurrencyCode: pairData.sourceCurrencyCode,
+        destCurrencyCode: pairData.destCurrencyCode,
+        isActive: true,
+      },
+      update: { isActive: true },
+    });
+
+    // Seed/upsert exchange rate
+    const latestRate = await prisma.exchangeRate.findFirst({
+      where: { pairId: pair.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!latestRate) {
+      await prisma.exchangeRate.create({
+        data: {
+          pairId: pair.id,
+          rate: pairData.baseRate,
+          marginPercent: pairData.margin,
+        },
+      });
+    } else {
+      await prisma.exchangeRate.update({
+        where: { id: latestRate.id },
+        data: {
+          rate: pairData.baseRate,
+          marginPercent: pairData.margin,
+        },
+      });
+    }
+    console.log(`✅ Seeded Corridor ${pairData.sourceCurrencyCode} -> ${pairData.destCurrencyCode} with rate ${pairData.baseRate} (margin: ${pairData.margin}%)`);
+  }
+
+  console.log('🌱 Seeding Corridor Fee Rules...');
+  for (const rule of FEE_RULES) {
+    const existingRule = await prisma.feeRule.findFirst({
+      where: {
+        sourceCountry: rule.sourceCountry,
+        destCountry: rule.destCountry,
+        payoutMethod: rule.payoutMethod,
+        minAmount: rule.minAmount,
+        maxAmount: rule.maxAmount,
+      },
+    });
+    if (!existingRule) {
+      await prisma.feeRule.create({ data: rule });
+    } else {
+      await prisma.feeRule.update({
+        where: { id: existingRule.id },
+        data: {
+          flatFee: rule.flatFee,
+          percentFee: rule.percentFee,
+        },
+      });
+    }
+  }
+  console.log(`✅ ${FEE_RULES.length} fee rules seeded`);
+
+  console.log('🎉 Golink Remit Dynamic RBAC & Corridor Seeding Completed!');
 }
 
 main()
