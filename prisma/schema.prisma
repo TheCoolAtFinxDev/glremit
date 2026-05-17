@@ -1,0 +1,426 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+  COMPLIANCE_OFFICER
+  FINANCE_OFFICER
+  OPERATIONS_OFFICER
+  PARTNER_MANAGER
+  SUPPORT_AGENT
+}
+
+enum CustomerStatus {
+  PENDING_KYC
+  KYC_IN_PROGRESS
+  KYC_UNDER_REVIEW
+  KYC_VERIFIED
+  KYC_REJECTED
+  SUSPENDED
+  BLACKLISTED
+}
+
+enum KycStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  ACTION_REQUIRED
+  EXPIRED
+}
+
+enum PayoutMethod {
+  BANK_ACCOUNT
+  MOBILE_MONEY
+  CASH_PICKUP
+}
+
+enum RemittanceStatus {
+  DRAFT
+  QUOTE_CREATED
+  PAYMENT_PENDING
+  PAYMENT_CONFIRMED
+  COMPLIANCE_PENDING
+  COMPLIANCE_PASSED
+  COMPLIANCE_FAILED
+  PAYOUT_PENDING
+  SENT_TO_PARTNER
+  PARTNER_PROCESSING
+  PAID
+  SETTLEMENT_PENDING
+  SETTLED
+  FAILED
+  CANCELLED
+  REVERSED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  INITIATED
+  PENDING
+  CONFIRMED
+  FAILED
+  CANCELLED
+  REVERSED
+  REFUNDED
+}
+
+enum ComplianceStatus {
+  PENDING
+  PASSED
+  FAILED
+  MANUAL_REVIEW
+  REJECTED
+}
+
+enum ComplianceCheckType {
+  KYC_VERIFICATION
+  SANCTIONS_SCREENING
+  PEP_SCREENING
+  TRANSACTION_LIMIT
+  VELOCITY_LIMIT
+  SOURCE_OF_FUNDS
+  PURPOSE_OF_TRANSFER
+  COUNTRY_CORRIDOR_RULE
+  RISK_SCORE
+}
+
+enum PartnerPayoutStatus {
+  PENDING
+  SENT
+  ACKNOWLEDGED
+  PROCESSING
+  PAID
+  FAILED
+  REJECTED
+  REVERSED
+}
+
+enum SettlementStatus {
+  PENDING
+  IN_PROGRESS
+  PARTIALLY_SETTLED
+  SETTLED
+  DISPUTED
+  FAILED
+}
+
+model Customer {
+  id              String                 @id @default(uuid())
+  wso2SubjectId   String                 @unique
+  email           String                 @unique
+  role            Role                   @default(CUSTOMER)
+  status          CustomerStatus         @default(PENDING_KYC)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  profile         CustomerProfile?
+  kyc             CustomerKyc?
+  recipients      Recipient[]
+  transactions    RemittanceTransaction[]
+  auditLogs       AuditLog[]
+}
+
+model CustomerProfile {
+  id            String   @id @default(uuid())
+  customerId    String   @unique
+  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  firstName     String
+  lastName      String
+  middleName    String?
+  phoneNumber   String   @unique
+  dateOfBirth   DateTime
+  addressLine1  String
+  addressLine2  String?
+  city          String
+  state         String?
+  postalCode    String
+  country       String
+  riskTier      String   @default("LOW")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model CustomerKyc {
+  id                  String     @id @default(uuid())
+  customerId          String     @unique
+  customer            Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  workflowId          String?
+  status              KycStatus  @default(NOT_STARTED)
+  riskScore           Float?
+  decision            String?
+  decisionReason      String?
+  documentsVerified   Json?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+}
+
+model Recipient {
+  id                  String                  @id @default(uuid())
+  customerId          String
+  customer            Customer                @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  fullName            String
+  mobileNumber        String
+  country             String
+  relationship        String?
+  payoutMethod        PayoutMethod
+  bankName            String?
+  accountNumber       String?
+  accountHolderName   String?
+  mobileWalletProvider String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  transactions        RemittanceTransaction[]
+}
+
+model Currency {
+  code      String         @id
+  name      String
+  symbol    String?
+  decimals  Int            @default(2)
+  isActive  Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  sourcePairs CurrencyPair[] @relation("SourceCurrency")
+  destPairs   CurrencyPair[] @relation("DestinationCurrency")
+}
+
+model CurrencyPair {
+  id                    String                  @id @default(uuid())
+  sourceCurrencyCode    String
+  sourceCurrency        Currency                @relation("SourceCurrency", fields: [sourceCurrencyCode], references: [code])
+  destCurrencyCode      String
+  destCurrency          Currency                @relation("DestinationCurrency", fields: [destCurrencyCode], references: [code])
+  isActive              Boolean                 @default(true)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  exchangeRates         ExchangeRate[]
+  quotes                RemittanceQuote[]
+  transactions          RemittanceTransaction[]
+
+  @@unique([sourceCurrencyCode, destCurrencyCode])
+}
+
+model ExchangeRate {
+  id              String       @id @default(uuid())
+  pairId          String
+  pair            CurrencyPair @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  rate            Decimal      @db.Decimal(18, 6)
+  marginPercent   Decimal      @default(0) @db.Decimal(5, 2)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model FeeRule {
+  id              String       @id @default(uuid())
+  sourceCountry   String
+  destCountry     String
+  payoutMethod    PayoutMethod
+  minAmount       Decimal      @db.Decimal(18, 2)
+  maxAmount       Decimal      @db.Decimal(18, 2)
+  flatFee         Decimal      @default(0) @db.Decimal(18, 2)
+  percentFee      Decimal      @default(0) @db.Decimal(5, 2)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model RemittanceQuote {
+  id                  String                  @id @default(uuid())
+  pairId              String
+  pair                CurrencyPair            @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  sendAmount          Decimal                 @db.Decimal(18, 2)
+  receiveAmount       Decimal                 @db.Decimal(18, 2)
+  exchangeRate        Decimal                 @db.Decimal(18, 6)
+  feeAmount           Decimal                 @db.Decimal(18, 2)
+  totalPayable        Decimal                 @db.Decimal(18, 2)
+  expiresAt           DateTime
+  createdAt           DateTime                @default(now())
+  transactions        RemittanceTransaction[]
+}
+
+model RemittanceTransaction {
+  id                  String                 @id @default(uuid())
+  customerId          String
+  customer            Customer               @relation(fields: [customerId], references: [id])
+  recipientId         String
+  recipient           Recipient              @relation(fields: [recipientId], references: [id])
+  pairId              String
+  pair                CurrencyPair           @relation(fields: [pairId], references: [id])
+  quoteId             String
+  quote               RemittanceQuote        @relation(fields: [quoteId], references: [id])
+  sendAmount          Decimal                @db.Decimal(18, 2)
+  receiveAmount       Decimal                @db.Decimal(18, 2)
+  feeAmount           Decimal                @db.Decimal(18, 2)
+  exchangeRate        Decimal                @db.Decimal(18, 6)
+  status              RemittanceStatus       @default(DRAFT)
+  purposeOfTransfer   String
+  sourceOfFunds       String
+  correlationId       String                 @unique @default(uuid())
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  payment             PaymentCollection?
+  complianceChecks    ComplianceCheck[]
+  payoutRequest       PartnerPayoutRequest?
+  settlementItem      SettlementItem?
+}
+
+model PaymentCollection {
+  id                String                @id @default(uuid())
+  transactionId     String                @unique
+  transaction       RemittanceTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  paymentMethod     String
+  providerName      String
+  providerReference String?
+  amount            Decimal               @db.Decimal(18, 2)
+  status            PaymentStatus         @default(INITIATED)
+  errorMessage      String?
+  callbackPayload   Json?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+}
+
+model ComplianceCheck {
+  id              String                @id @default(uuid())
+  transactionId   String
+  transaction     RemittanceTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  checkType       ComplianceCheckType
+  status          ComplianceStatus      @default(PENDING)
+  resultDetails   Json?
+  reviewerId      String?
+  reviewedAt      DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+}
+
+model PartnerProfile {
+  id              String                 @id @default(uuid())
+  name            String
+  code            String                 @unique
+  isActive        Boolean                @default(true)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  corridors       PartnerCorridor[]
+  payoutRequests  PartnerPayoutRequest[]
+}
+
+model PartnerCorridor {
+  id              String         @id @default(uuid())
+  partnerId       String
+  partner         PartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  sourceCountry   String
+  destCountry     String
+  payoutMethod    PayoutMethod
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model PartnerPayoutRequest {
+  id                String                @id @default(uuid())
+  transactionId     String                @unique
+  transaction       RemittanceTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  partnerId         String
+  partner           PartnerProfile        @relation(fields: [partnerId], references: [id])
+  partnerReference  String?
+  status            PartnerPayoutStatus   @default(PENDING)
+  errorMessage      String?
+  responsePayload   Json?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+}
+
+model SettlementBatch {
+  id              String           @id @default(uuid())
+  partnerCode     String
+  status          SettlementStatus @default(PENDING)
+  totalAmount     Decimal          @db.Decimal(18, 2)
+  itemsCount      Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  items           SettlementItem[]
+}
+
+model SettlementItem {
+  id              String                @id @default(uuid())
+  batchId         String
+  batch           SettlementBatch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  transactionId   String                @unique
+  transaction     RemittanceTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  payoutAmount    Decimal               @db.Decimal(18, 2)
+  feeAmount       Decimal               @db.Decimal(18, 2)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+}
+
+model ReconciliationRun {
+  id              String               @id @default(uuid())
+  statementDate   DateTime
+  status          String
+  matchedCount    Int                  @default(0)
+  unmatchedCount  Int                  @default(0)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  items           ReconciliationItem[]
+}
+
+model ReconciliationItem {
+  id              String            @id @default(uuid())
+  runId           String
+  run             ReconciliationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  transactionRef  String
+  amount          Decimal           @db.Decimal(18, 2)
+  status          String
+  discrepancyType String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model NotificationLog {
+  id              String   @id @default(uuid())
+  recipientId     String
+  channel         String
+  event           String
+  status          String
+  payload         Json?
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+}
+
+model AuditLog {
+  id            String    @id @default(uuid())
+  actorId       String?
+  actor         Customer? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action        String
+  entityName    String
+  entityId      String
+  beforeData    Json?
+  afterData     Json?
+  ipAddress     String?
+  userAgent     String?
+  correlationId String
+  createdAt     DateTime  @default(now())
+}
+
+model WebhookEvent {
+  id            String   @id @default(uuid())
+  provider      String
+  eventId       String   @unique
+  payload       Json
+  processed     Boolean  @default(false)
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SystemSettings {
+  key         String   @id
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}

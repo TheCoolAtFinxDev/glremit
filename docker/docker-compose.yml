@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: golink-remit-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: golink_remit_user
+      POSTGRES_PASSWORD: golink_remit_password
+      POSTGRES_DB: golink_remit_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
