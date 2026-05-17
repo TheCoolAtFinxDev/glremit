@@ -48,3 +48,7 @@ Thumbs.db
 __screenshots__/
 
 /generated/prisma
+.env
+.env.local
+.env.*.local
+
